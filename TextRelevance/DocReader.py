@@ -7,6 +7,8 @@ import codecs
 from tqdm import tqdm
 from multiprocessing import Pool
 import pickle
+import json
+import time
 
 from FolderViewer import FolderViewer
 
@@ -53,11 +55,11 @@ def remove_hr(soup):
 		hr.decompose()
 	return soup
 
+
 def remove_script(soup):
 	for script in soup("script"):
 		script.decompose()
 	return soup
-
 
 
 
@@ -87,15 +89,15 @@ class DocReader:
 		return url_num
 
 	def pickle_save(self, file_list, path_str, folder_str):
-		assert isinstance(str, type(path_str))
-		assert isinstance(list, type(file_list))
-		assert isinstance(str, type(folder_str))
+		assert not isinstance(str, type(path_str))
+		assert not isinstance(list, type(file_list))
+		assert not isinstance(str, type(folder_str))
 
 		full_path = path_str + folder_str
 		if not os.path.exists(full_path):
 			os.makedirs(full_path)
 
-		with open(full_path, 'wb') as f:
+		with open(full_path + '/' + 'data.pkl', 'wb') as f:
 			pickle.dump(file_list, f)
 
 
@@ -105,12 +107,17 @@ class DocReader:
 			list = pickle.load(f)
 		return list
 
+	def save_json(self, data):
+		time_write = time.time()
+		with open('./data/json/json_{}.txt'.format(time_write), 'w') as outfile:
+			json.dump(data, outfile)
+
 
 	def go_parse(self):
 		folder_list = self.fv.get_folder_list(self.path)
 		n_pools = len(folder_list)
 		with Pool(n_pools) as p:
-			p.map(self.parser, folder_list)
+			p.map(self.parser, folder_list[0:2])
 
 
 	def parser(self, folder = "20170702"):
@@ -138,7 +145,8 @@ class DocReader:
 			temp_list = [url_num, title, body]
 			tuple_list.append(temp_list)
 
-		self.pickle_save(tuple_list, self.out, folder)
+		#self.pickle_save(tuple_list, self.out, folder)
+		self.save_json(tuple_list)
 
 
 			#todo you can do some experiments with this
