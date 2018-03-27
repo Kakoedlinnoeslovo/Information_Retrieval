@@ -1,14 +1,14 @@
 # -*-coding: utf-8 -*-
 from bs4 import BeautifulSoup
 import os
-from os import listdir
-from os.path import isfile, join
 #from collections import namedtuple
 import re
 import codecs
 from tqdm import tqdm
 from multiprocessing import Pool
 import pickle
+
+from FolderViewer import FolderViewer
 
 TAG_RE = re.compile(r'<[^>]+>')
 DEL_SYM = re.compile(r'[!@#$\+\-\{\}\¦]')
@@ -60,18 +60,6 @@ def remove_script(soup):
 
 
 
-class FolderViewer:
-	def __init__(self):
-		pass
-
-	def get_folder_list(self, path):
-		return os.listdir(path)
-
-
-	def get_files(self, path):
-		onlyfiles = [f for f in listdir(path) if (isfile(join(path, f)))]
-		return onlyfiles
-
 
 class DocReader:
 	def __init__(self):
@@ -112,7 +100,7 @@ class DocReader:
 
 
 	def pickle_load(self, path):
-		assert isinstance(str, type(path))
+		assert not isinstance(str, type(path))
 		with open(path, 'rb') as f:
 			list = pickle.load(f)
 		return list
