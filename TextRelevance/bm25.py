@@ -15,6 +15,16 @@ from multiprocessing import Pool
 stem = Mystem()
 
 
+def multi_run_wrapper(args):
+    return add(*args)
+
+
+def add(x, y):
+    return x, y
+
+
+
+
 class bmw25:
     def __init__(self):
         self.path = "./data/pickle_dumps/"
@@ -27,14 +37,8 @@ class bmw25:
         self.k1 = 2.0
         self.b = 0.75
         self.N = 38114 #that show me submission
-        self.avdl_body = 0
-        self.avdl_title = 0
-        #self.body_index = inverted_index.Index()
-        #self.title_index = inverted_index.Index()
-        self.body_len = dict()
-        self.title_len = dict()
-        self.safe_body = dict()
-        self.safe_title = dict()
+
+
 
     def _get_pickle(self, folder_name):
         files = self.viewer.get_files(self.path + folder_name)
@@ -53,61 +57,35 @@ class bmw25:
                                      for word in data.split() if word not in self.stop_words]))
         return noise_free
 
+    def write_file(self, path, list_):
+        # write to file
+        text_file = open(path, "w")
+        text_file.writelines(list_)
+        text_file.close()
 
 
-    def fill_title_index(self, data):
+    def fill_index(self, data, choice):
         """
-        :param data: old data[1] or data[2] - title or body
-        :param inverted_index, that i want to fill
-        :param index: data[0]
-        :return: fill index body or title
+
+        :param data:
+        :param choice: 1 for title, 2 for body
+        :return:
         """
-        noise_free_title = self.get_noise_free(data[1])
-        self.title_len[data[0]] = len(noise_free_title)
-        self.avdl_title += len(noise_free_title)
-        noise_free_title = " ".join(str(x) for x in noise_free_title)
-        the_file = open('./data/clear/title.txt', 'a')
-        the_file.write('{}\t{}\n'.format(data[0], noise_free_title))
-        #self.safe_title[data[0]] = noise_free_title
-        #self.title_index.index(data[0], noise_free_title)
 
-    def fill_body_index(self, data):
-        noise_free_body = self.get_noise_free(data[2])
-        self.body_len[data[0]] = len(noise_free_body)
-        self.avdl_body += len(noise_free_body)
-        noise_free_body = " ".join(str(x) for x in noise_free_body)
-        the_file = open('./data/clear/body.txt', 'a')
-        the_file.write('{}\t{}\n'.format(data[0], noise_free_body))
-        #self.safe_body[data[0]] = noise_free_body
-        #self.body_index.index(data[0], noise_free_body)
+        assert not isinstance(int, type(choice))
+        noise_free = self.get_noise_free(data[choice])
+        len_txt = len(noise_free)
+
+        noise_free = " ".join(str(x) for x in noise_free)
+        text = '{}\t{}\t{}\n'.format(data[0], len_txt, noise_free)
+
+        return text
 
 
-    def prepare_list(self, temp_list):
-        self.fill_title_index(temp_list)
-        self.fill_body_index(temp_list)
-
-
-    def  _prepare(self, cur_folder):
-        """
-        :param cur_folder: get cur_folder,
-        it is relative path of folder, example: 20170702
-
-        this function:
-        clear html,
-        compute len,average length,
-        build inverted index,
-        open folder with queries and return it
-
-        :return: queries_str, title_index, body_index, title_len, body_len
-        """
-        temp_list = self._get_pickle(cur_folder)
-
-        n_pools = 10
-        batch_size = 500
-        for i in tqdm(range(0, len(temp_list)-1, batch_size)):
-            with Pool(n_pools) as p:
-                p.map(self.prepare_list, temp_list[i*batch_size:(i+1) * batch_size])
-
+    # def prepare_list(self, data):
+    #     i = self.i
+    #     self.fill_title_index(data, i)
+    #     self.fill_body_index(data, i)
 
 
     def check_in_index(self, word, index):
@@ -182,19 +160,42 @@ class bmw25:
         doc_list = list()
         for word in query.split():
             word_stem = stem.lemmatize(word.encode('utf-8', 'replace'))[0]
-            doc_s_index = list(title_index.inverted_index[word_stem].keys())
-            doc_s_body = list(body_index.inverted_index[word_stem].keys())
-            doc_list = list(set(doc_s_index.extend(doc_s_body)))
+            if word_stem in title_index.inverted_index:
+                doc_s_index = list(title_index.inverted_index[word_stem].keys())
+                doc_s_body = list(body_index.inverted_index[word_stem].keys())
+                doc_list = list(set(doc_s_index.extend(doc_s_body)))
+            else:
+                continue
         return doc_list
+
+
+    def partition(self, cur_folder):
+        temp_list = self._get_pickle(cur_folder)
+
+        list_title = list_body = list()
+
+        for data in tqdm(temp_list):
+            string_title = self.fill_index(data, 1)
+            list_title.append(string_title)
+
+            string_body = self.fill_index(data, 2)
+            list_body.append(string_body)
+
+        self.write_file('./data/clear/body_{}.txt'.format(cur_folder), list_body)
+        self.write_file('./data/clear/title_{}.txt'.format(cur_folder), list_title)
+
+
+
 
 
     def run(self):
         folders = self.viewer.get_folder_list(self.path)
 
         score_bm25 = defaultdict()  # [0] is query, [1] is doc, return score
-        #for cur_folder in folders:
-        cur_folder = folders[0]
-        self._prepare(cur_folder)
+        n_pools = 10
+
+        p = Pool(n_pools)
+        p.map(self.partition, folders)
 
 
 
@@ -226,8 +227,8 @@ class bmw25:
                 continue
 
 
-        self.avdl_body /= self.N
-        self.avdl_title /= self.N
+        self.avdl_body = float(self.avdl_body)/ self.N
+        self.avdl_title = float(self.avdl_title) / self.N
 
         query_folder = "./data/queries.numerate.txt"
         queries_str = open(query_folder, "r").read()
